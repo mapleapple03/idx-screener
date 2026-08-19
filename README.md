@@ -252,6 +252,59 @@ RR di bawah 1,3 otomatis diturunkan menjadi PANTAU.
 
 ---
 
+## Data Tambahan dari Aplikasi Broker (opsional)
+
+Screener bisa menerima data **net beli/jual asing** yang Anda ekspor sendiri dari
+aplikasi broker (BRIGHTS, dsb). Ini data yang tidak tersedia gratis di mana pun,
+dan termasuk sinyal paling berguna di pasar Indonesia.
+
+**Cara pakai:**
+
+1. Di aplikasi broker, ekspor data net asing ke CSV atau Excel
+   (kalau hasilnya Excel, simpan ulang jadi `.csv`)
+2. Simpan sebagai `data\external\foreign-flow.csv`
+3. Jalankan screener seperti biasa
+
+Contoh isi file (lihat `data\external\foreign-flow.contoh.csv`):
+
+```
+Kode,NetAsing
+BBCA,1.250.000.000
+BBRI,(45.000.000)
+ADRO,88500000
+```
+
+**Nama kolom fleksibel.** Kode saham dikenali dari `Kode`, `Code`, `Stock`,
+`Ticker`, `Symbol`, atau `Emiten`. Nilainya dari `NetAsing`, `Asing`, `Foreign`,
+`Net`, `Nilai`, dan sejenisnya. Akhiran `.JK`, huruf kecil, dan spasi ikut dibersihkan.
+
+**Format angka bebas.** Gaya Indonesia (`1.250.000.000`), gaya Inggris
+(`1,250,000,000`), negatif dengan minus (`-45000`) maupun kurung (`(45.000)`)
+semuanya terbaca. Nilai positif = asing net beli, negatif = asing net jual.
+
+**Satuan tidak masalah** (rupiah, juta, atau lot) asalkan konsisten di dalam satu
+file, karena yang dipakai adalah peringkat relatif antar saham.
+
+**Pengaruhnya dibatasi maksimal +/- 5 poin** pada skor teknikal, supaya tidak
+menenggelamkan analisa harga dan fundamental. Saham yang tidak ada di file
+**sama sekali tidak terpengaruh**, dan kalau filenya tidak ada, screener jalan
+persis seperti biasa. Kalau file lebih tua dari 7 hari, muncul peringatan agar
+diekspor ulang.
+
+### Kenapa tidak otomatis ambil dari aplikasi broker?
+
+Aplikasi BRIGHTS Easy adalah program Java dengan browser Chromium tertanam; datanya
+datang dari server BRI Danareksa lewat sesi login Anda. Ada tiga penghalang:
+
+1. Tidak ada cara mengendalikan aplikasi desktop Windows dari sini
+2. Foldernya hanya berisi tata letak jendela dan konfigurasi akun, bukan data pasar
+3. Jalur yang tersisa berarti mengambil token login dari aplikasi - itu penanganan
+   kredensial, dan tetap tidak menyelesaikan masalah karena tugas terjadwal jam
+   16:30 berjalan tanpa ada orang yang bisa login
+
+Ekspor manual mengatasi ketiganya sekaligus. Data seperti net asing tetap berguna
+berhari-hari, jadi cukup diekspor seminggu sekali.
+
 ## Penyesuaian
 
 **Menambah / menghapus saham** — edit `lib\Universe.ps1`, tulis kode tanpa akhiran `.JK`:

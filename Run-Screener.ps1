@@ -42,6 +42,7 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 . (Join-Path $root 'lib\MarketData.ps1')
 . (Join-Path $root 'lib\Indicators.ps1')
 . (Join-Path $root 'lib\Analysis.ps1')
+. (Join-Path $root 'lib\ExternalData.ps1')
 . (Join-Path $root 'lib\Report.ps1')
 
 $startTime = Get-Date
@@ -69,6 +70,19 @@ try {
         Write-Host (' OK (3 bulan: {0:N1}%)' -f $benchRet3m) -ForegroundColor Green
     } else { Write-Host ' data kurang' -ForegroundColor Yellow }
 } catch { Write-Host ' gagal, kekuatan relatif dilewati' -ForegroundColor Yellow }
+
+# --- Data tambahan hasil ekspor dari aplikasi broker (opsional) ---
+$foreignFlow = Import-ForeignFlow -Root $root
+if ($null -ne $foreignFlow) {
+    $umur = ''
+    if ($null -ne $foreignFlow.AgeDays) { $umur = " (umur data $($foreignFlow.AgeDays) hari)" }
+    Write-Host "  Data net asing dimuat: $($foreignFlow.Count) saham$umur" -ForegroundColor Green
+    if ($null -ne $foreignFlow.AgeDays -and $foreignFlow.AgeDays -gt 7) {
+        Write-Host '  Data asing sudah lebih dari seminggu, sebaiknya diekspor ulang.' -ForegroundColor Yellow
+    }
+} else {
+    Write-Host '  Data net asing tidak ada (opsional) - analisa jalan tanpa itu.' -ForegroundColor DarkGray
+}
 
 # Seberapa jauh sesi bursa hari ini berjalan - dipakai untuk menormalkan volume intraday.
 $sessionProgress = Get-IdxSessionProgress
@@ -230,12 +244,18 @@ foreach ($code in $tickers) {
         # ---------- Skoring ----------
         $fs = Get-FundamentalScore -Fund $f -Sector $f.Sector
         $ts = Get-TechnicalScore -T $T
+
+        # Aliran dana asing (opsional, dari ekspor aplikasi broker). Pengaruhnya
+        # dibatasi maksimal +/- 5 poin supaya tidak menenggelamkan analisa utama.
+        $ff = Get-ForeignFlowScore -Flow $foreignFlow -Code $code
+        $techFinal = [Math]::Max(0, [Math]::Min(100, $ts.Score + $ff.Points))
+
         $style = Get-TradingStyle -T $T -FundScore $fs.Score
         $plan  = Get-TradePlan -T $T -Style $style.Primary
         # Di bawah 120 bar, MA50/MA200 belum terbentuk penuh sehingga gambaran
         # tren jangka panjang belum bisa diandalkan.
         $limited = ($n -lt 120)
-        $sig   = Get-Signal -Tech $ts.Score -Fund $fs.Score -Plan $plan -LimitedData $limited -Weekly $weekly
+        $sig   = Get-Signal -Tech $techFinal -Fund $fs.Score -Plan $plan -LimitedData $limited -Weekly $weekly
 
         # ---------- Alasan naratif ----------
         $reasonTech = @($ts.Notes) | Where-Object { $_ }
@@ -247,6 +267,10 @@ foreach ($code in $tickers) {
             if ($weekly.Trend -eq 'NAIK') { $reasonTech = @($reasonTech) + @($weekly.Note) }
             else                          { $risks      = @($risks)      + @($weekly.Note) }
         }
+        # Catatan aliran dana asing (skornya sudah dihitung di atas).
+        if ($ff.Note) { $reasonTech = @($reasonTech) + @($ff.Note) }
+        if ($ff.Flag) { $risks      = @($risks)      + @($ff.Flag) }
+
         # Support yang didukung volume tebal layak disebut.
         if ($null -ne $sr.Support -and $sr.SupportStrength -ge 55) {
             $reasonTech = @($reasonTech) + @("support {0:N0} didukung volume tebal (kekuatan {1}%)" -f $sr.Support, $sr.SupportStrength)
@@ -270,7 +294,9 @@ foreach ($code in $tickers) {
             Change1D    = [Math]::Round($chg1d, 2)
             Signal      = $sig.Signal
             Combined    = $sig.Combined
-            TechScore   = $ts.Score
+            TechScore   = [Math]::Round($techFinal, 1)
+            ForeignRel  = $ff.Rel
+            ForeignPts  = $ff.Points
             FundScore   = $fs.Score
             FundCover   = $fs.Coverage
             Style       = $style.Primary

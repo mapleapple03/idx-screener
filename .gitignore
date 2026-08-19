@@ -1,6 +1,11 @@
 # Hasil scan bisa dibuat ulang kapan saja, tidak perlu masuk repositori.
-data/
+data/*
 output/
+
+# Kecuali contoh format data ekspor broker, itu berguna sebagai acuan.
+!data/external/
+data/external/*
+!data/external/*.contoh.csv
 
 # File sementara Windows / editor
 Thumbs.db
