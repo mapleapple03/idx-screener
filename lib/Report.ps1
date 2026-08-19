@@ -127,6 +127,11 @@ footer{margin-top:26px;padding:15px;background:var(--panel);border:1px solid var
   border-radius:10px;color:var(--tx3);font-size:11.5px;line-height:1.65}
 footer b{color:var(--amber)}
 .empty{text-align:center;padding:50px;color:var(--tx3)}
+.more{display:none;width:100%;margin:16px 0 4px;padding:14px;background:var(--panel);
+  border:1px solid var(--line);border-radius:10px;color:var(--tx);font-size:14px;
+  font-weight:600;cursor:pointer;font-family:inherit;transition:.13s}
+.more:hover{border-color:var(--blue);background:var(--panel2)}
+.more:active{transform:scale(.995)}
 
 /* ---------- Tampilan ponsel ---------- */
 @media(max-width:760px){
@@ -199,6 +204,7 @@ footer b{color:var(--amber)}
 </div>
 <div class="count" id="count"></div>
 <div class="grid" id="grid"></div>
+<button id="more" class="more">Muat lebih banyak</button>
 
 <footer>
   <b>PERINGATAN RISIKO.</b> Dashboard ini adalah alat bantu screening berbasis rumus,
@@ -283,15 +289,28 @@ function init() {
     var el = document.getElementById(id);
     el.addEventListener(id === "q" ? "input" : "change", render);
   });
+  document.getElementById("more").onclick = function(){
+    var dari = shown;
+    shown += PAGE;
+    paint(dari);
+    // Setelah menambah kartu, geser sedikit supaya tombol tetap terlihat.
+    window.scrollBy({ top: 200, behavior: "smooth" });
+  };
   render();
 }
+
+// Bursa punya 800+ emiten. Menggambar semuanya sekaligus bikin HP berat
+// (ratusan ribu elemen), jadi kartu ditampilkan bertahap.
+var PAGE = 60;
+var shown = PAGE;
+var curList = [];
 
 function render() {
   var q = document.getElementById("q").value.toLowerCase().trim();
   var sec = document.getElementById("sector").value;
   var sortKey = document.getElementById("sort").value;
 
-  var list = S.filter(function(s){
+  curList = S.filter(function(s){
     if (fSig !== "ALL" && s.Signal !== fSig) return false;
     if (fStyle !== "ALL" && s.Style !== fStyle) return false;
     if (sec !== "ALL" && s.Sector !== sec) return false;
@@ -299,17 +318,46 @@ function render() {
     return true;
   });
 
-  list.sort(function(a,b){
+  curList.sort(function(a,b){
     var x = a[sortKey], y = b[sortKey];
     if (x === null || x === undefined) x = -9999;
     if (y === null || y === undefined) y = -9999;
     return y - x;
   });
 
-  document.getElementById("count").textContent = "Menampilkan " + list.length + " dari " + S.length + " saham";
+  shown = PAGE;      // tiap ganti filter, kembali ke halaman pertama
+  paint();
+}
+
+function paint(appendFrom) {
   var g = document.getElementById("grid");
-  if (!list.length) { g.innerHTML = '<div class="empty">Tidak ada saham yang cocok dengan filter.</div>'; return; }
-  g.innerHTML = list.map(card).join("");
+  var more = document.getElementById("more");
+  var cnt = document.getElementById("count");
+
+  if (!curList.length) {
+    g.innerHTML = '<div class="empty">Tidak ada saham yang cocok dengan filter.</div>';
+    more.style.display = "none";
+    cnt.textContent = "0 dari " + S.length + " saham";
+    return;
+  }
+  var slice = curList.slice(0, shown);
+  if (typeof appendFrom === "number" && appendFrom > 0) {
+    // Saat menambah halaman, cukup sisipkan kartu baru. Menggambar ulang semua
+    // kartu yang sudah tampil hanya membuang waktu dan bikin layar berkedip.
+    g.insertAdjacentHTML("beforeend", curList.slice(appendFrom, shown).map(card).join(""));
+  } else {
+    g.innerHTML = slice.map(card).join("");
+  }
+  cnt.textContent = "Menampilkan " + slice.length + " dari " + curList.length +
+                    " hasil filter  (total " + S.length + " saham dipindai)";
+
+  var sisa = curList.length - slice.length;
+  if (sisa > 0) {
+    more.style.display = "block";
+    more.textContent = "Muat " + Math.min(PAGE, sisa) + " lagi  (" + sisa + " belum tampil)";
+  } else {
+    more.style.display = "none";
+  }
 }
 
 function lvl(cls, name, price, sub) {
