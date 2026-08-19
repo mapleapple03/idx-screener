@@ -27,6 +27,7 @@
 param(
     [string]$Time = '16:30',
     [string]$Extra = '',
+    [switch]$Publish,
     [switch]$Remove
 )
 
@@ -70,10 +71,13 @@ if ([Math]::Abs($offset - 7) -gt 0.01) {
 }
 Write-Host ''
 
+$extraArgs = ''
+if ($Publish) { $extraArgs = ' -Publish' }
+
 function Register-IdxTask([string]$name, [string]$at, [string]$desc) {
     Remove-IdxTask $name | Out-Null
     $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
-        -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$script`" -NoOpen" `
+        -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$script`" -NoOpen$extraArgs" `
         -WorkingDirectory $root
     $trigger = New-ScheduledTaskTrigger -Weekly `
         -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday -At $at
@@ -94,6 +98,9 @@ try {
     }
 
     Write-Host ''
+    if ($Publish) {
+        Write-Host '  Mode -Publish aktif: situs GitHub Pages ikut diperbarui tiap kali scan.' -ForegroundColor Cyan
+    }
     Write-Host '  Screener akan berjalan otomatis di latar belakang.' -ForegroundColor Cyan
     Write-Host '  StartWhenAvailable aktif: kalau komputer mati saat jadwal, tugas' -ForegroundColor DarkGray
     Write-Host '  dijalankan begitu komputer menyala kembali.' -ForegroundColor DarkGray

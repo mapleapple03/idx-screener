@@ -60,6 +60,90 @@ komputer menyala kembali (`StartWhenAvailable`).
 
 ---
 
+---
+
+## Akses dari HP & Laptop (GitHub Pages)
+
+Dashboard bisa diterbitkan jadi situs web yang dibuka dari mana saja, dan ikut
+diperbarui otomatis setiap kali screener jalan.
+
+Repositori git lokal **sudah disiapkan** beserta folder `docs\` (ikon, manifest,
+dan dashboard). Tinggal 4 langkah yang **harus Anda lakukan sendiri** karena
+menyangkut login akun GitHub:
+
+### 1. Buat repositori kosong di GitHub
+
+Buka <https://github.com/new>, isi nama misalnya `idx-screener`, lalu **Create
+repository**. Jangan centang "Add a README" - repositori harus kosong.
+
+> **Penting soal privasi:** GitHub Pages untuk akun gratis hanya jalan di
+> repositori **public**, artinya situs dan kode bisa dilihat siapa saja yang tahu
+> alamatnya. Isinya hanya data pasar publik dan hasil hitungan - tidak ada data
+> akun, portofolio, atau saldo Anda. Kalau tetap ingin privat, GitHub Pages di
+> repositori private butuh langganan GitHub Pro.
+
+### 2. Hubungkan ke repositori lokal
+
+Ganti `USERNAME` dengan username GitHub Anda:
+
+```bash
+git -C "C:\Users\siaha\Claude\idx-screener" remote add origin https://github.com/USERNAME/idx-screener.git
+```
+
+### 3. Unggah pertama kali
+
+```bash
+git -C "C:\Users\siaha\Claude\idx-screener" push -u origin main
+```
+
+Saat diminta login, akan muncul jendela **Git Credential Manager** - masuk lewat
+browser di situ. Kredensial Anda tidak pernah melewati skrip mana pun.
+
+### 4. Aktifkan GitHub Pages
+
+Di repositori GitHub: **Settings** -> **Pages** -> bagian *Build and deployment*:
+
+- Source: **Deploy from a branch**
+- Branch: **main**, folder: **/docs**
+- Klik **Save**
+
+Tunggu 1-2 menit, situs aktif di:
+
+```
+https://USERNAME.github.io/idx-screener/
+```
+
+Buka alamat itu di HP maupun laptop.
+
+### Pasang di layar utama HP
+
+Situs sudah dilengkapi manifest dan ikon, jadi bisa dipasang seperti aplikasi:
+
+- **Android (Chrome):** menu tiga titik -> *Add to Home screen*
+- **iPhone (Safari):** tombol Share -> *Add to Home Screen*
+
+Setelah dipasang, tampil layar penuh tanpa address bar.
+
+### Update otomatis situs
+
+Supaya situs ikut diperbarui tiap kali screener jalan, pasang ulang jadwal dengan
+tambahan `-Publish`:
+
+```bash
+powershell -ExecutionPolicy Bypass -File .\Install-Schedule.ps1 -Publish
+```
+
+Atau perbarui manual kapan saja:
+
+```bash
+powershell -ExecutionPolicy Bypass -File .\Run-Screener.ps1 -Publish
+```
+
+Kalau unggah gagal (misal internet mati), hasil scan tetap tersimpan di `data\`
+dan `output\` - kegagalan publish tidak pernah membatalkan hasil analisa.
+
+---
+
 ## Isi Dashboard
 
 Tiap saham ditampilkan sebagai kartu berisi:
@@ -196,6 +280,11 @@ idx-screener/
   Run-Screener.ps1       Program utama
   Update.bat             Klik dua kali untuk memperbarui
   Install-Schedule.ps1   Pemasang jadwal otomatis
+  Publish-Web.ps1        Penerbit situs ke GitHub Pages
+  docs/                  Isi situs web (dibaca GitHub Pages)
+    index.html           Dashboard versi web
+    manifest.json        Agar bisa dipasang di layar utama HP
+    icon-*.png           Ikon aplikasi
   lib/
     Universe.ps1         Daftar saham yang dipindai
     MarketData.ps1       Pengambilan data + kalender sesi bursa

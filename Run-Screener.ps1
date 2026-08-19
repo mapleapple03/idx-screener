@@ -19,6 +19,10 @@
 .PARAMETER NoOpen
     Jangan buka dashboard otomatis setelah selesai.
 
+.PARAMETER Publish
+    Setelah selesai, salin dashboard ke folder docs\ lalu unggah ke GitHub
+    sehingga situs web ikut diperbarui. Butuh login GitHub (lihat README).
+
 .EXAMPLE
     .\Run-Screener.ps1
     .\Run-Screener.ps1 -Limit 20 -NoOpen
@@ -27,7 +31,8 @@
 param(
     [int]$Limit = 0,
     [double]$MinScore = 0,
-    [switch]$NoOpen
+    [switch]$NoOpen,
+    [switch]$Publish
 )
 
 $ErrorActionPreference = 'Stop'
@@ -411,5 +416,18 @@ if ($buy.Count -gt 0) {
 Write-Host "   Data   : $latestPath" -ForegroundColor DarkGray
 Write-Host "   Laporan: $htmlPath" -ForegroundColor DarkGray
 Write-Host ''
+
+# --- Terbitkan ke web (opsional) ---
+# Kegagalan publish tidak boleh membatalkan hasil scan yang sudah benar.
+if ($Publish) {
+    $pub = Join-Path $root 'Publish-Web.ps1'
+    if (Test-Path $pub) {
+        try { & $pub -Push }
+        catch {
+            Write-Host "   Publish ke web gagal: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host '   Hasil scan tetap tersimpan di data\ dan output\.' -ForegroundColor DarkGray
+        }
+    }
+}
 
 if (-not $NoOpen) { Start-Process $htmlPath }
