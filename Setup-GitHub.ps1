@@ -151,18 +151,28 @@ $tmp = Join-Path $env:TEMP 'idx-pages.json'
 
 $out = & $gh api -X POST "repos/$full/pages" --input $tmp 2>&1
 $code = $LASTEXITCODE
+
+if ($code -ne 0 -and "$out" -match '409|already exists') {
+    # Pages sudah pernah dinyalakan. Belum tentu foldernya benar - kalau
+    # sumbernya bukan /docs, situsnya akan 404. Jadi perbaiki lewat PUT.
+    $cur = & $gh api "repos/$full/pages" --jq '.source.path' 2>$null
+    if ("$cur".Trim() -ne '/docs') {
+        Say "        Sumber situs masih '$cur', diperbaiki ke /docs..." Yellow
+        & $gh api -X PUT "repos/$full/pages" --input $tmp 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) { Say '        Sumber situs diperbaiki.' Green; $code = 0 }
+    } else {
+        Say '        Situs sudah aktif dengan folder yang benar.' DarkGray
+        $code = 0
+    }
+}
 Remove-Item $tmp -Force -ErrorAction SilentlyContinue
 
 if ($code -ne 0) {
-    if ("$out" -match '409|already exists') {
-        Say '        Situs sudah pernah dinyalakan sebelumnya.' DarkGray
-    } else {
-        Say '        Otomatis gagal. Nyalakan manual (sekali saja):' Yellow
-        Say "          https://github.com/$full/settings/pages" White
-        Say '          Source: Deploy from a branch' DarkGray
-        Say "          Branch: $branch   Folder: /docs   -> Save" DarkGray
-    }
-} else {
+    Say '        Otomatis gagal. Nyalakan manual (sekali saja):' Yellow
+    Say "          https://github.com/$full/settings/pages" White
+    Say '          Source: Deploy from a branch' DarkGray
+    Say "          Branch: $branch   Folder: /docs   -> Save" DarkGray
+} elseif ("$out" -notmatch '409|already exists') {
     Say '        Situs dinyalakan.' Green
 }
 
