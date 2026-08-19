@@ -279,8 +279,9 @@ function init() {
     el.addEventListener(id === "q" ? "input" : "change", render);
   });
   document.getElementById("more").onclick = function(){
+    var dari = shown;
     shown += PAGE;
-    paint();
+    paint(dari);
     // Setelah menambah kartu, geser sedikit supaya tombol tetap terlihat.
     window.scrollBy({ top: 200, behavior: "smooth" });
   };
@@ -317,7 +318,7 @@ function render() {
   paint();
 }
 
-function paint() {
+function paint(appendFrom) {
   var g = document.getElementById("grid");
   var more = document.getElementById("more");
   var cnt = document.getElementById("count");
@@ -329,7 +330,13 @@ function paint() {
     return;
   }
   var slice = curList.slice(0, shown);
-  g.innerHTML = slice.map(card).join("");
+  if (typeof appendFrom === "number" && appendFrom > 0) {
+    // Saat menambah halaman, cukup sisipkan kartu baru. Menggambar ulang semua
+    // kartu yang sudah tampil hanya membuang waktu dan bikin layar berkedip.
+    g.insertAdjacentHTML("beforeend", curList.slice(appendFrom, shown).map(card).join(""));
+  } else {
+    g.innerHTML = slice.map(card).join("");
+  }
   cnt.textContent = "Menampilkan " + slice.length + " dari " + curList.length +
                     " hasil filter  (total " + S.length + " saham dipindai)";
 
