@@ -81,9 +81,15 @@ function Register-IdxTask([string]$name, [string]$at, [string]$desc) {
         -WorkingDirectory $root
     $trigger = New-ScheduledTaskTrigger -Weekly `
         -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday -At $at
+    # PENTING untuk laptop: secara bawaan Windows MENOLAK menjalankan tugas
+    # terjadwal saat komputer memakai baterai, dan penolakan itu tidak dihitung
+    # sebagai "terlewat" - jadi tugasnya diam-diam tidak pernah jalan.
+    # AllowStartIfOnBatteries + DontStopIfGoingOnBatteries mematikan perilaku itu.
     $settings = New-ScheduledTaskSettingsSet `
         -StartWhenAvailable `
         -DontStopOnIdleEnd `
+        -AllowStartIfOnBatteries `
+        -DontStopIfGoingOnBatteries `
         -ExecutionTimeLimit (New-TimeSpan -Minutes 120) `
         -RestartCount 2 -RestartInterval (New-TimeSpan -Minutes 10)
     Register-ScheduledTask -TaskName $name -Action $action -Trigger $trigger `
