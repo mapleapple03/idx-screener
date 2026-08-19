@@ -110,21 +110,29 @@ if (-not $Push) {
 }
 
 Push-Location $root
+# PENTING: git menulis peringatan biasa (mis. soal CRLF) ke stderr. Di PowerShell 5.1
+# stderr dari program eksternal dibungkus jadi ErrorRecord, sehingga dengan
+# ErrorActionPreference 'Stop' peringatan sepele pun membatalkan skrip. Karena itu
+# di blok ini kita pakai 'Continue' dan menilai keberhasilan dari $LASTEXITCODE.
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
 try {
     if (-not (Test-Path (Join-Path $root '.git'))) {
         throw "Belum ada repositori git di sini. Ikuti langkah penyiapan di README."
     }
     $remote = ''
-    try { $remote = (git remote get-url origin 2>$null) } catch { }
+    try { $remote = (git remote get-url origin) } catch { }
     if ([string]::IsNullOrWhiteSpace($remote)) {
-        throw "Remote 'origin' belum diatur. Ikuti langkah penyiapan di README."
+        throw "Remote 'origin' belum diatur. Jalankan .\Setup-GitHub.ps1 dulu."
     }
 
     if ([string]::IsNullOrWhiteSpace($Message)) {
         $Message = "Perbarui screener " + (Get-Date -Format 'yyyy-MM-dd HH:mm')
     }
 
-    git add docs 2>&1 | Out-Null
+    # 2>$null membuang peringatan git yang tidak penting; keberhasilan tetap
+    # dinilai dari $LASTEXITCODE, bukan dari ada/tidaknya tulisan di stderr.
+    git add docs 2>$null | Out-Null
     $status = git status --porcelain docs
     if ([string]::IsNullOrWhiteSpace($status)) {
         Write-Host '  Tidak ada perubahan untuk diunggah.' -ForegroundColor DarkGray
@@ -132,13 +140,13 @@ try {
         return
     }
 
-    git commit -m $Message | Out-Null
+    git commit -m $Message 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "git commit gagal." }
 
     $branch = (git rev-parse --abbrev-ref HEAD).Trim()
-    git push origin $branch
+    git push origin $branch 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        throw "git push gagal. Pastikan Anda sudah login ke GitHub (lihat README)."
+        throw "git push gagal. Pastikan Anda sudah login ke GitHub (jalankan: gh auth login)."
     }
 
     Write-Host "  Terunggah ke GitHub (branch $branch)." -ForegroundColor Green
@@ -148,4 +156,7 @@ try {
     }
     Write-Host ''
 }
-finally { Pop-Location }
+finally {
+    $ErrorActionPreference = $prevEAP
+    Pop-Location
+}

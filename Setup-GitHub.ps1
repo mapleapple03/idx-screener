@@ -128,6 +128,9 @@ if ($existing -ne $want) {
 
 # --- 3. Unggah ---
 Say '  [3/4] Mengunggah file...' Cyan
+# Segarkan docs\ dari hasil scan terakhir, kalau tidak situsnya bisa ketinggalan.
+$pub = Join-Path $root 'Publish-Web.ps1'
+if (Test-Path $pub) { & $pub | Out-Null }
 git add -A 2>&1 | Out-Null
 $dirty = git status --porcelain
 if (-not [string]::IsNullOrWhiteSpace($dirty)) {
