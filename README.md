@@ -67,53 +67,54 @@ komputer menyala kembali (`StartWhenAvailable`).
 Dashboard bisa diterbitkan jadi situs web yang dibuka dari mana saja, dan ikut
 diperbarui otomatis setiap kali screener jalan.
 
-Repositori git lokal **sudah disiapkan** beserta folder `docs\` (ikon, manifest,
-dan dashboard). Tinggal 4 langkah yang **harus Anda lakukan sendiri** karena
-menyangkut login akun GitHub:
+### Kenapa perlu GitHub?
 
-### 1. Buat repositori kosong di GitHub
+Saat ini dashboard cuma ada sebagai file di laptop Anda. HP tidak bisa membukanya
+karena file itu tidak punya alamat internet. GitHub menyimpan file tersebut di
+komputer yang menyala 24 jam dan memberinya alamat web gratis, sehingga bisa
+dibuka dari perangkat mana pun.
 
-Buka <https://github.com/new>, isi nama misalnya `idx-screener`, lalu **Create
-repository**. Jangan centang "Add a README" - repositori harus kosong.
+Alurnya: **laptop bikin dashboard -> unggah ke GitHub -> GitHub tampilkan sebagai
+situs -> HP & laptop tinggal buka alamatnya.**
+
+### Hanya 2 langkah
+
+Repositori lokal, folder `docs\`, ikon, dan manifest **sudah disiapkan**.
+Yang tersisa:
+
+**Langkah 1 - login ke GitHub (sekali seumur hidup):**
+
+```bash
+gh auth login
+```
+
+Pilih jawaban: `GitHub.com` -> `HTTPS` -> `Yes` -> `Login with a web browser`.
+Akan muncul kode 8 karakter (contoh `ABCD-1234`). Salin kode itu, tekan Enter,
+lalu tempel di browser yang terbuka.
+
+Kalau belum punya akun GitHub, daftar gratis dulu di <https://github.com/signup>.
+
+**Langkah 2 - jalankan pemandu:**
+
+```bash
+powershell -ExecutionPolicy Bypass -File .\Setup-GitHub.ps1
+```
+
+Skrip ini otomatis membuat repositori, mengunggah file, menyalakan GitHub Pages,
+lalu menampilkan alamat situs Anda. Tidak perlu membuka antarmuka web GitHub
+sama sekali.
+
+Situs aktif dalam 1-2 menit di:
+
+```
+https://USERNAME.github.io/idx-screener/
+```
 
 > **Penting soal privasi:** GitHub Pages untuk akun gratis hanya jalan di
 > repositori **public**, artinya situs dan kode bisa dilihat siapa saja yang tahu
 > alamatnya. Isinya hanya data pasar publik dan hasil hitungan - tidak ada data
 > akun, portofolio, atau saldo Anda. Kalau tetap ingin privat, GitHub Pages di
 > repositori private butuh langganan GitHub Pro.
-
-### 2. Hubungkan ke repositori lokal
-
-Ganti `USERNAME` dengan username GitHub Anda:
-
-```bash
-git -C "C:\Users\siaha\Claude\idx-screener" remote add origin https://github.com/USERNAME/idx-screener.git
-```
-
-### 3. Unggah pertama kali
-
-```bash
-git -C "C:\Users\siaha\Claude\idx-screener" push -u origin main
-```
-
-Saat diminta login, akan muncul jendela **Git Credential Manager** - masuk lewat
-browser di situ. Kredensial Anda tidak pernah melewati skrip mana pun.
-
-### 4. Aktifkan GitHub Pages
-
-Di repositori GitHub: **Settings** -> **Pages** -> bagian *Build and deployment*:
-
-- Source: **Deploy from a branch**
-- Branch: **main**, folder: **/docs**
-- Klik **Save**
-
-Tunggu 1-2 menit, situs aktif di:
-
-```
-https://USERNAME.github.io/idx-screener/
-```
-
-Buka alamat itu di HP maupun laptop.
 
 ### Pasang di layar utama HP
 
