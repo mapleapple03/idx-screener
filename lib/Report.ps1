@@ -375,6 +375,16 @@ function card(s) {
        '<span>Tren mingguan <b style="color:' + wkCol + '">' + esc(s.WeeklyTrend || "-") + '</b></span>' +
        (s.SupportStr ? '<span>Kekuatan support <b>' + s.SupportStr + '%</b></span>' : '') +
        '</div>';
+  // Hasil bersih setelah biaya beli+jual broker
+  if (s.NetTP1 !== undefined && s.NetTP1 !== null) {
+    var netCol = s.NetTP1 <= 0 ? "var(--red)" : (s.FeeBitePct >= 25 ? "var(--amber)" : "var(--green)");
+    h += '<div class="rr" style="border-top:1px dashed var(--line)">' +
+         '<span>Bersih TP1 <b style="color:' + netCol + '">' + s.NetTP1 + '%</b></span>' +
+         '<span>Bersih TP2 <b>' + s.NetTP2 + '%</b></span>' +
+         '<span>Impas di <b>' + n(s.BreakEven) + '</b></span>' +
+         '<span>RR bersih <b>1 : ' + s.NetRR + '</b></span>' +
+         '</div>';
+  }
   h += '<div class="basis">SL: ' + esc(s.SLBasis) + '<br>TP: ' + esc(s.TPBasis) + '</div>';
   h += '</div>';
 

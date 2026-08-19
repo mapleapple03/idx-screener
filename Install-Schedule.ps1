@@ -84,7 +84,7 @@ function Register-IdxTask([string]$name, [string]$at, [string]$desc) {
     $settings = New-ScheduledTaskSettingsSet `
         -StartWhenAvailable `
         -DontStopOnIdleEnd `
-        -ExecutionTimeLimit (New-TimeSpan -Minutes 40) `
+        -ExecutionTimeLimit (New-TimeSpan -Minutes 120) `
         -RestartCount 2 -RestartInterval (New-TimeSpan -Minutes 10)
     Register-ScheduledTask -TaskName $name -Action $action -Trigger $trigger `
         -Settings $settings -Description $desc | Out-Null

@@ -90,7 +90,8 @@ if ($sessionProgress -gt 0 -and $sessionProgress -lt 0.98) {
     Write-Host ('  Sesi bursa sedang berjalan ({0:N0}%). Volume hari ini diproyeksikan ke satu hari penuh.' -f ($sessionProgress * 100)) -ForegroundColor Yellow
 }
 
-$tickers = $Global:IDX_UNIVERSE
+$tickers = Get-IdxUniverse -Root $root
+Write-Host "  Universe: $($Global:IDX_UNIVERSE_SOURCE)" -ForegroundColor DarkGray
 if ($Limit -gt 0 -and $Limit -lt $tickers.Count) { $tickers = $tickers[0..($Limit - 1)] }
 
 Write-Host ''
@@ -105,7 +106,14 @@ foreach ($code in $tickers) {
     $idx++
     $sym = "$code.JK"
     $pct = [int](100 * $idx / $tickers.Count)
-    Write-Progress -Activity 'Memindai saham IDX' -Status "$code ($idx/$($tickers.Count))" -PercentComplete $pct
+    # Perkiraan sisa waktu - berguna karena memindai 800+ saham makan waktu lama.
+    $eta = ''
+    if ($idx -gt 5) {
+        $rate = ((Get-Date) - $startTime).TotalSeconds / $idx
+        $sisa = [TimeSpan]::FromSeconds($rate * ($tickers.Count - $idx))
+        $eta = ", sisa ~{0:h\:mm\:ss}" -f $sisa
+    }
+    Write-Progress -Activity 'Memindai saham IDX' -Status "$code ($idx/$($tickers.Count)$eta)" -PercentComplete $pct
 
     try {
         $hist = Get-PriceHistory -Symbol $sym -Range '2y'
@@ -267,6 +275,14 @@ foreach ($code in $tickers) {
             if ($weekly.Trend -eq 'NAIK') { $reasonTech = @($reasonTech) + @($weekly.Note) }
             else                          { $risks      = @($risks)      + @($weekly.Note) }
         }
+        # Biaya transaksi memakan porsi besar dari target yang tipis.
+        if ($plan.FeeBitePct -ge 25) {
+            $risks = @($risks) + @("biaya beli+jual memakan {0}% dari potensi untung TP1 (bersih hanya {1}%)" -f $plan.FeeBitePct, $plan.NetTP1)
+        }
+        if ($plan.NetTP1 -le 0) {
+            $risks = @($risks) + @('setelah biaya transaksi, TP1 tidak menyisakan untung - target terlalu dekat')
+        }
+
         # Catatan aliran dana asing (skornya sudah dihitung di atas).
         if ($ff.Note) { $reasonTech = @($reasonTech) + @($ff.Note) }
         if ($ff.Flag) { $risks      = @($risks)      + @($ff.Flag) }
@@ -318,6 +334,11 @@ foreach ($code in $tickers) {
             RR          = $plan.RRRatio
             SLBasis     = $plan.SLBasis
             TPBasis     = $plan.TPBasis
+            NetTP1      = $plan.NetTP1
+            NetTP2      = $plan.NetTP2
+            NetRR       = $plan.NetRR
+            BreakEven   = $plan.BreakEven
+            FeeBitePct  = $plan.FeeBitePct
 
             RSI         = $(if ($null -ne $T.RSI) { [Math]::Round($T.RSI, 1) } else { $null })
             ADX         = $(if ($null -ne $T.ADX) { [Math]::Round($T.ADX, 1) } else { $null })
@@ -373,7 +394,7 @@ foreach ($code in $tickers) {
         Write-Host ("   {0,-6} gagal: {1}" -f $code, $_.Exception.Message) -ForegroundColor DarkRed
     }
 
-    Start-Sleep -Milliseconds 120   # jeda sopan agar tidak kena rate limit
+    Start-Sleep -Milliseconds 50   # jeda sopan agar tidak kena rate limit
 }
 
 Write-Progress -Activity 'Memindai saham IDX' -Completed

@@ -1,7 +1,12 @@
 # Universe.ps1 - Daftar saham IDX yang di-screen.
-# Tambah/hapus kode saham di sini sesuai kebutuhan (tanpa akhiran .JK).
+#
+# Secara default screener memakai daftar LENGKAP hasil .\Update-Universe.ps1
+# yang tersimpan di data\universe.json (semua emiten yang tercatat di BEI).
+# Kalau file itu belum ada, dipakai daftar cadangan di bawah ini.
+#
+# Tambah/hapus kode saham di daftar cadangan sesuai kebutuhan (tanpa akhiran .JK).
 
-$Global:IDX_UNIVERSE = @(
+$Global:IDX_UNIVERSE_FALLBACK = @(
     # --- Perbankan & Keuangan ---
     'BBCA','BBRI','BMRI','BBNI','BRIS','BBTN','BNGA','BJBR','BJTM','ARTO',
     'BTPS','BDMN','NISP','PNBN','MEGA','BBHI','AGRO','BANK','BBKP','BFIN',
@@ -50,6 +55,26 @@ $Global:IDX_UNIVERSE = @(
     # --- Aneka ---
     'MLBI','SMAR','TAPG','STAA','FILM','MSIN','BOGA','NASI','BACH'
 ) | Select-Object -Unique
+
+function Get-IdxUniverse {
+    <# Ambil daftar lengkap dari data\universe.json kalau ada, kalau tidak pakai
+       daftar cadangan. Mengembalikan array kode saham tanpa akhiran .JK. #>
+    param([string]$Root)
+
+    $path = Join-Path $Root 'data\universe.json'
+    if (Test-Path $path) {
+        try {
+            $u = Get-Content $path -Raw | ConvertFrom-Json
+            $codes = @($u.Stocks | ForEach-Object { $_.Code } | Where-Object { $_ })
+            if ($codes.Count -gt 0) {
+                $Global:IDX_UNIVERSE_SOURCE = "daftar lengkap ($($codes.Count) saham, diperbarui $($u.UpdatedAt))"
+                return $codes
+            }
+        } catch { }
+    }
+    $Global:IDX_UNIVERSE_SOURCE = "daftar cadangan ($($Global:IDX_UNIVERSE_FALLBACK.Count) saham) - jalankan .\Update-Universe.ps1 untuk daftar lengkap"
+    return $Global:IDX_UNIVERSE_FALLBACK
+}
 
 # Indeks acuan pasar (IHSG) untuk analisa kekuatan relatif.
 $Global:IDX_BENCHMARK = '^JKSE'

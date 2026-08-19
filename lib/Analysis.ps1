@@ -2,6 +2,33 @@
 # penyusunan rencana trading (entry / SL / TP), dan alasan naratif.
 
 # ---------------------------------------------------------------------------
+# Biaya transaksi saham Indonesia di Pluang.
+# Sumber: https://pluang.com/biaya/id-stocks - 0,15% beli dan 0,25% jual,
+# sudah termasuk pajak (PPN, PPh) dan biaya pihak ketiga (Levy BEI/KSEI, KPEI).
+# Ubah angka ini kalau Anda memakai broker lain dengan tarif berbeda.
+# ---------------------------------------------------------------------------
+$Global:FEE_BUY_PCT  = 0.15
+$Global:FEE_SELL_PCT = 0.25
+
+function Get-NetResult {
+    <# Hitung hasil bersih setelah biaya beli dan jual.
+       Beli di $Entry berarti keluar uang $Entry * (1 + biayaBeli).
+       Jual di $Exit berarti terima uang $Exit * (1 - biayaJual). #>
+    param([double]$Entry, [double]$Exit)
+    if ($Entry -le 0) { return 0.0 }
+    $modal = $Entry * (1.0 + $Global:FEE_BUY_PCT / 100.0)
+    $terima = $Exit * (1.0 - $Global:FEE_SELL_PCT / 100.0)
+    return 100.0 * ($terima - $modal) / $modal
+}
+
+function Get-BreakEvenPrice {
+    <# Harga jual minimum agar tidak rugi setelah semua biaya. #>
+    param([double]$Entry)
+    if ($Entry -le 0) { return 0.0 }
+    return $Entry * (1.0 + $Global:FEE_BUY_PCT / 100.0) / (1.0 - $Global:FEE_SELL_PCT / 100.0)
+}
+
+# ---------------------------------------------------------------------------
 # Fraksi harga (tick size) resmi IDX. Semua level harga dibulatkan ke sini
 # supaya order benar-benar bisa dipasang di pasar.
 # ---------------------------------------------------------------------------
@@ -538,6 +565,18 @@ function Get-TradePlan {
         $rr        = ($tp1 - $px) / ($px - $sl)
     }
 
+    # --- Hitung ulang setelah biaya transaksi broker ---
+    # Untung kotor di layar belum tentu untung di rekening. Untuk target tipis
+    # (sering terjadi di day trade), biaya bisa memakan sebagian besar profit.
+    $netTP1 = Get-NetResult -Entry $px -Exit $tp1
+    $netTP2 = Get-NetResult -Entry $px -Exit $tp2
+    $netSL  = Get-NetResult -Entry $px -Exit $sl
+    $breakEven = ConvertTo-ValidTick -Price (Get-BreakEvenPrice -Entry $px) -Mode 'Up'
+    $netRR = 0.0
+    if ($netSL -lt 0) { $netRR = $netTP1 / [Math]::Abs($netSL) }
+    $feeBite = 0.0
+    if ($rewardPct -gt 0) { $feeBite = 100.0 * ($rewardPct - $netTP1) / $rewardPct }
+
     return [pscustomobject]@{
         EntryLow   = $entryLo
         EntryHigh  = $entryHi
@@ -550,6 +589,12 @@ function Get-TradePlan {
         RRRatio    = [Math]::Round($rr, 2)
         SLBasis    = $slBasis
         TPBasis    = $tpBasis
+        NetTP1     = [Math]::Round($netTP1, 2)
+        NetTP2     = [Math]::Round($netTP2, 2)
+        NetSL      = [Math]::Round($netSL, 2)
+        NetRR      = [Math]::Round($netRR, 2)
+        BreakEven  = $breakEven
+        FeeBitePct = [Math]::Round($feeBite, 0)
     }
 }
 
@@ -570,9 +615,12 @@ function Get-Signal {
     elseif ($Tech -lt 35 -or $Fund -lt 28)  { $sig = 'HINDARI' }
     else { $sig = 'PANTAU' }
 
-    # Risk/reward jelek menurunkan kualitas sinyal beli.
-    if ($null -ne $Plan -and $Plan.RRRatio -lt 1.3 -and ($sig -eq 'STRONG BUY' -or $sig -eq 'BUY')) {
-        $sig = 'PANTAU'
+    # Risk/reward jelek menurunkan kualitas sinyal beli. Yang dipakai adalah RR
+    # BERSIH (setelah biaya beli+jual), karena itu yang benar-benar Anda terima.
+    if ($null -ne $Plan -and ($sig -eq 'STRONG BUY' -or $sig -eq 'BUY')) {
+        $rrCheck = $Plan.RRRatio
+        if ($null -ne $Plan.NetRR -and $Plan.NetRR -gt 0) { $rrCheck = $Plan.NetRR }
+        if ($rrCheck -lt 1.2) { $sig = 'PANTAU' }
     }
 
     # Saham dengan riwayat harga pendek (baru IPO) tidak boleh dapat sinyal

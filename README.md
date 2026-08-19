@@ -14,9 +14,14 @@ tanpa langganan. Cukup PowerShell bawaan Windows.
 ### Perbarui sekarang
 Klik dua kali **`Update.bat`**.
 
-Proses memindai ~193 saham dan memakan waktu sekitar **8–10 menit** (mengambil data
-harian dan mingguan untuk tiap saham). Setelah selesai, dashboard terbuka otomatis
-di browser.
+Proses memindai **seluruh saham BEI (~845 emiten)** dan memakan waktu sekitar
+**25–35 menit**. Setelah selesai, dashboard terbuka otomatis di browser.
+
+Untuk uji cepat, batasi jumlahnya:
+
+```bash
+powershell -ExecutionPolicy Bypass -File .\Run-Screener.ps1 -Limit 30
+```
 
 Lewat PowerShell:
 
@@ -247,8 +252,29 @@ inilah sebabnya sebagian saham menampilkan RR di bawah 2.
 Seluruh level dibulatkan ke **fraksi harga resmi IDX** (Rp1 / 2 / 5 / 10 / 25
 tergantung rentang harga), sehingga order benar-benar bisa dipasang di pasar.
 
-Rasio Risk/Reward dihitung standar: `(TP1 − Harga) / (Harga − SL)`. Sinyal BUY dengan
-RR di bawah 1,3 otomatis diturunkan menjadi PANTAU.
+Rasio Risk/Reward dihitung standar: `(TP1 − Harga) / (Harga − SL)`.
+
+### Biaya Transaksi (hasil bersih)
+
+Untung yang terlihat di layar belum tentu untung di rekening. Screener ikut
+menghitung **biaya transaksi Pluang untuk saham Indonesia**: **0,15% saat beli**
+dan **0,25% saat jual** (sudah termasuk PPN, PPh, Levy BEI/KSEI, dan biaya KPEI).
+Sumber: <https://pluang.com/biaya/id-stocks>.
+
+Tiap saham menampilkan:
+
+- **Bersih TP1 / TP2** — persentase untung setelah semua biaya
+- **Impas** — harga jual minimum agar tidak rugi
+- **RR bersih** — risk/reward sesungguhnya setelah biaya
+
+Sinyal BUY dengan **RR bersih di bawah 1,2** otomatis diturunkan jadi PANTAU, dan
+kalau biaya memakan 25% ke atas dari potensi untung TP1, muncul catatan risiko.
+
+Ini penting terutama untuk day trade: target 4% yang kelihatan bagus bisa menyusut
+jadi RR bersih di bawah 1, artinya potensi untungnya tidak lagi sepadan dengan risiko.
+
+Pakai broker lain? Ubah `$Global:FEE_BUY_PCT` dan `$Global:FEE_SELL_PCT` di
+`lib\Analysis.ps1`.
 
 ---
 
@@ -307,13 +333,27 @@ berhari-hari, jadi cukup diekspor seminggu sekali.
 
 ## Penyesuaian
 
-**Menambah / menghapus saham** — edit `lib\Universe.ps1`, tulis kode tanpa akhiran `.JK`:
+**Daftar saham** — secara default screener memindai **seluruh emiten BEI**
+(sekitar 845 saham) dari `data\universe.json`. Perbarui daftarnya sesekali supaya
+emiten yang baru IPO ikut masuk:
 
-```powershell
-$Global:IDX_UNIVERSE = @(
-    'BBCA','BBRI','ANTM', 'KODEBARU'
-)
+```bash
+powershell -ExecutionPolicy Bypass -File .\Update-Universe.ps1
 ```
+
+Daftar diambil dari Yahoo Finance screener (region Indonesia) lalu digabung dengan
+daftar cadangan di `lib\Universe.ps1`. Penggabungan ini perlu karena screener Yahoo
+ternyata melewatkan beberapa emiten (mis. ZINC, WIKA, FASW, HITS, INTA) yang datanya
+sebenarnya tetap bisa diambil.
+
+Kalau hanya ingin memindai saham berkapitalisasi besar supaya lebih cepat:
+
+```bash
+powershell -ExecutionPolicy Bypass -File .\Update-Universe.ps1 -MinMarketCap 1000000000000
+```
+
+Untuk memindai daftar pilihan sendiri, edit daftar cadangan di `lib\Universe.ps1`
+lalu hapus `data\universe.json`.
 
 **Mengubah ambang penilaian** — edit `lib\Analysis.ps1`:
 
@@ -333,7 +373,9 @@ $Global:IDX_UNIVERSE = @(
 idx-screener/
   Run-Screener.ps1       Program utama
   Update.bat             Klik dua kali untuk memperbarui
+  Update-Universe.ps1    Ambil daftar lengkap emiten BEI
   Install-Schedule.ps1   Pemasang jadwal otomatis
+  Setup-GitHub.ps1       Pemandu penyiapan situs web
   Publish-Web.ps1        Penerbit situs ke GitHub Pages
   docs/                  Isi situs web (dibaca GitHub Pages)
     index.html           Dashboard versi web
