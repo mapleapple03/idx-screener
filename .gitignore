@@ -1,0 +1,8 @@
+# Hasil scan bisa dibuat ulang kapan saja, tidak perlu masuk repositori.
+data/
+output/
+
+# File sementara Windows / editor
+Thumbs.db
+desktop.ini
+*.log
