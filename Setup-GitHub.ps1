@@ -1,133 +1,184 @@
 <#
 .SYNOPSIS
-    Pemandu penyiapan GitHub Pages untuk screener (langkah 2 dan 3).
+    Pemandu otomatis: bikin repositori GitHub, unggah, dan nyalakan situs web.
 
 .DESCRIPTION
-    Skrip ini menanyakan username GitHub Anda, menghubungkan repositori lokal ke
-    GitHub, lalu mengunggahnya. Anda tidak perlu mengetik perintah git manual.
+    Skrip ini mengerjakan semuanya untuk Anda:
+      1. Membuat repositori di GitHub
+      2. Mengunggah isi folder screener
+      3. Menyalakan GitHub Pages (situs web)
+      4. Menampilkan alamat situs Anda
 
-    Skrip TIDAK PERNAH meminta atau menyimpan password/token. Login dilakukan
-    lewat jendela browser milik Git Credential Manager.
+    Yang harus Anda lakukan sendiri hanya satu: login ke GitHub lebih dulu dengan
+    perintah  gh auth login  (login lewat browser, aman).
 
-    Sebelum menjalankan ini, pastikan repositori KOSONG sudah dibuat di
-    https://github.com/new (langkah 1).
+    Skrip TIDAK PERNAH meminta atau menyimpan password/token Anda.
+
+.PARAMETER RepoName
+    Nama repositori. Default: idx-screener
+
+.PARAMETER Private
+    Buat repositori privat. CATATAN: GitHub Pages di repositori privat butuh
+    langganan GitHub Pro. Untuk akun gratis, biarkan publik.
 
 .EXAMPLE
     .\Setup-GitHub.ps1
 #>
 [CmdletBinding()]
 param(
-    [string]$Username = '',
-    [string]$RepoName = 'idx-screener'
+    [string]$RepoName = 'idx-screener',
+    [switch]$Private
 )
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 
 function Say([string]$t, [string]$c = 'Gray') { Write-Host $t -ForegroundColor $c }
+function Head([string]$t) {
+    Say ''
+    Say '  ============================================================' DarkCyan
+    Say "   $t" Cyan
+    Say '  ============================================================' DarkCyan
+    Say ''
+}
 
-Say ''
-Say '  ============================================================' DarkCyan
-Say '   PENYIAPAN GITHUB PAGES - SCREENER SAHAM IDX' Cyan
-Say '  ============================================================' DarkCyan
-Say ''
+Head 'PENYIAPAN SITUS SCREENER SAHAM IDX'
 
-# --- Pemeriksaan awal ---
-if (-not (Test-Path (Join-Path $root '.git'))) {
-    Say '  Repositori git belum ada di folder ini.' Red
+# --- Cari gh.exe (PATH kadang belum ter-refresh setelah instal) ---
+$gh = $null
+$cand = @(
+    (Get-Command gh -ErrorAction SilentlyContinue).Source,
+    "$env:ProgramFiles\GitHub CLI\gh.exe",
+    "${env:ProgramFiles(x86)}\GitHub CLI\gh.exe",
+    "$env:LOCALAPPDATA\Programs\GitHub CLI\gh.exe"
+)
+foreach ($c in $cand) { if ($c -and (Test-Path $c)) { $gh = $c; break } }
+
+if (-not $gh) {
+    Say '  GitHub CLI belum terpasang. Pasang dulu dengan:' Red
+    Say '    winget install --id GitHub.cli' White
+    Say '  Lalu tutup dan buka lagi PowerShell, jalankan skrip ini lagi.' DarkGray
+    Say ''
     return
 }
+
+# --- Pemeriksaan folder ---
+if (-not (Test-Path (Join-Path $root '.git'))) { Say '  Repositori git belum ada di folder ini.' Red; return }
 if (-not (Test-Path (Join-Path $root 'docs\index.html'))) {
-    Say '  Folder docs\ belum siap. Jalankan dulu:' Yellow
-    Say '    .\Run-Screener.ps1' DarkGray
+    Say '  Dashboard belum dibuat. Jalankan dulu:' Yellow
+    Say '    .\Run-Screener.ps1' White
+    Say ''
     return
 }
 
-Say '  Sebelum lanjut, pastikan Anda SUDAH membuat repositori kosong di:' Yellow
-Say '    https://github.com/new' White
-Say '  (nama: ' -NoNewline; Say $RepoName -NoNewline White; Say ', JANGAN centang "Add a README")'
-Say ''
-
-# --- Username ---
-while ([string]::IsNullOrWhiteSpace($Username) -or $Username -eq 'USERNAME') {
-    $Username = (Read-Host '  Ketik username GitHub Anda').Trim()
-    if ($Username -eq 'USERNAME') {
-        Say '  Itu masih contoh, bukan username asli Anda. Coba lagi.' Red
-        $Username = ''
-    }
-    elseif ($Username -match '[^A-Za-z0-9\-]') {
-        Say '  Username GitHub hanya boleh huruf, angka, dan tanda minus.' Red
-        $Username = ''
-    }
+# --- 1. Cek login ---
+Say '  [1/4] Memeriksa login GitHub...' Cyan
+& $gh auth status 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Say ''
+    Say '  Anda belum login ke GitHub.' Yellow
+    Say ''
+    Say '  Jalankan perintah ini dulu (sekali saja):' White
+    Say ''
+    Say '      gh auth login' Green
+    Say ''
+    Say '  Saat ditanya, pilih jawaban berikut:' White
+    Say '      What account do you want to log into?  -> GitHub.com' DarkGray
+    Say '      What is your preferred protocol?       -> HTTPS' DarkGray
+    Say '      Authenticate Git with your credentials?-> Yes' DarkGray
+    Say '      How would you like to authenticate?    -> Login with a web browser' DarkGray
+    Say ''
+    Say '  Nanti muncul kode 8 karakter (contoh ABCD-1234). Salin kode itu,' DarkGray
+    Say '  tekan Enter, lalu tempel di browser yang terbuka. Selesai.' DarkGray
+    Say ''
+    Say '  Setelah itu jalankan lagi: .\Setup-GitHub.ps1' Cyan
+    Say ''
+    return
 }
 
-$url = "https://github.com/$Username/$RepoName.git"
-Say ''
-Say "  Akan dihubungkan ke: $url" Cyan
-$ok = (Read-Host '  Sudah benar? (y/n)').Trim().ToLower()
-if ($ok -ne 'y') { Say '  Dibatalkan.' Yellow; return }
+$user = (& $gh api user --jq .login 2>$null)
+if ([string]::IsNullOrWhiteSpace($user)) { Say '  Gagal membaca akun GitHub Anda.' Red; return }
+Say "        Login sebagai: $user" Green
 
-# --- Pasang remote (ganti kalau sudah ada) ---
+# --- 2. Buat repositori kalau belum ada ---
+Say '  [2/4] Menyiapkan repositori...' Cyan
+$full = "$user/$RepoName"
+& $gh repo view $full 2>&1 | Out-Null
+$repoExists = ($LASTEXITCODE -eq 0)
+
+if ($repoExists) {
+    Say "        Repositori $full sudah ada, dipakai ulang." DarkGray
+} else {
+    $vis = '--public'
+    if ($Private) { $vis = '--private' }
+    & $gh repo create $RepoName $vis --description 'Screener saham IDX: analisa fundamental dan teknikal otomatis' 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { Say "        Gagal membuat repositori $full." Red; return }
+    Say "        Repositori $full dibuat." Green
+}
+
+# --- Pasang remote ---
 $existing = ''
 try { $existing = (git remote get-url origin 2>$null) } catch { }
-if (-not [string]::IsNullOrWhiteSpace($existing)) {
-    Say "  Remote lama dihapus: $existing" DarkGray
-    git remote remove origin
+$want = "https://github.com/$full.git"
+if ($existing -ne $want) {
+    if (-not [string]::IsNullOrWhiteSpace($existing)) { git remote remove origin 2>&1 | Out-Null }
+    git remote add origin $want 2>&1 | Out-Null
 }
-git remote add origin $url
-Say '  Remote terpasang.' Green
 
-# --- Pastikan docs\ ikut ter-commit ---
+# --- 3. Unggah ---
+Say '  [3/4] Mengunggah file...' Cyan
 git add -A 2>&1 | Out-Null
 $dirty = git status --porcelain
 if (-not [string]::IsNullOrWhiteSpace($dirty)) {
-    git commit -q -m ("Perbarui screener " + (Get-Date -Format 'yyyy-MM-dd HH:mm'))
-    Say '  Perubahan terbaru ikut disimpan.' Green
+    git commit -q -m ("Perbarui screener " + (Get-Date -Format 'yyyy-MM-dd HH:mm')) 2>&1 | Out-Null
 }
-
-# --- Unggah ---
-Say ''
-Say '  Mengunggah ke GitHub...' Cyan
-Say '  Kalau muncul jendela login, pilih "Sign in with your browser".' DarkGray
-Say ''
-
 $branch = (git rev-parse --abbrev-ref HEAD).Trim()
-git push -u origin $branch
-
+git push -u origin $branch 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) {
-    Say ''
-    Say '  Unggah GAGAL. Penyebab yang paling sering:' Red
-    Say '   1. Repositori belum dibuat di GitHub -> buka https://github.com/new' Yellow
-    Say "   2. Nama repositori beda -> pastikan namanya persis '$RepoName'" Yellow
-    Say '   3. Username salah ketik' Yellow
-    Say '   4. Login dibatalkan -> jalankan ulang skrip ini' Yellow
-    Say ''
-    Say '  Perbaiki lalu jalankan lagi: .\Setup-GitHub.ps1' DarkGray
+    Say '        Unggah gagal. Coba jalankan manual untuk lihat pesannya:' Red
+    Say "          git push -u origin $branch" White
     Say ''
     return
 }
+Say "        Terunggah ke branch $branch." Green
 
+# --- 4. Nyalakan GitHub Pages ---
+Say '  [4/4] Menyalakan situs web (GitHub Pages)...' Cyan
+$body = '{"source":{"branch":"' + $branch + '","path":"/docs"}}'
+$tmp = Join-Path $env:TEMP 'idx-pages.json'
+[System.IO.File]::WriteAllText($tmp, $body, (New-Object System.Text.UTF8Encoding $false))
+
+$out = & $gh api -X POST "repos/$full/pages" --input $tmp 2>&1
+$code = $LASTEXITCODE
+Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+
+if ($code -ne 0) {
+    if ("$out" -match '409|already exists') {
+        Say '        Situs sudah pernah dinyalakan sebelumnya.' DarkGray
+    } else {
+        Say '        Otomatis gagal. Nyalakan manual (sekali saja):' Yellow
+        Say "          https://github.com/$full/settings/pages" White
+        Say '          Source: Deploy from a branch' DarkGray
+        Say "          Branch: $branch   Folder: /docs   -> Save" DarkGray
+    }
+} else {
+    Say '        Situs dinyalakan.' Green
+}
+
+# --- Selesai ---
+$site = "https://$user.github.io/$RepoName/"
+Head 'SELESAI'
+Say '  Alamat situs Anda:' Cyan
+Say "     $site" Green
 Say ''
-Say '  ============================================================' DarkCyan
-Say '   BERHASIL DIUNGGAH' Green
-Say '  ============================================================' DarkCyan
+Say '  Situs butuh 1-2 menit untuk aktif pertama kali.' DarkGray
+Say '  Kalau masih 404, tunggu sebentar lalu muat ulang.' DarkGray
 Say ''
-Say '  LANGKAH TERAKHIR - aktifkan GitHub Pages (sekali saja):' Yellow
+Say '  Buka alamat itu di HP, lalu pasang seperti aplikasi:' Cyan
+Say '     Android (Chrome) : menu titik tiga -> Add to Home screen' DarkGray
+Say '     iPhone (Safari)  : tombol Share    -> Add to Home Screen' DarkGray
 Say ''
-Say "   1. Buka  https://github.com/$Username/$RepoName/settings/pages" White
-Say '   2. Bagian "Build and deployment":' White
-Say '        Source : Deploy from a branch' DarkGray
-Say "        Branch : $branch    Folder: /docs" DarkGray
-Say '   3. Klik Save, lalu tunggu 1-2 menit.' White
-Say ''
-Say '  Setelah itu situs Anda aktif di:' Cyan
-Say "    https://$Username.github.io/$RepoName/" Green
-Say ''
-Say '  Buka alamat itu di HP, lalu:' Cyan
-Say '    Android (Chrome) : menu titik tiga -> Add to Home screen' DarkGray
-Say '    iPhone (Safari)  : tombol Share -> Add to Home Screen' DarkGray
-Say ''
-Say '  Supaya situs ikut diperbarui otomatis tiap hari bursa:' Cyan
-Say '    .\Install-Schedule.ps1 -Publish' DarkGray
+Say '  Agar situs ikut diperbarui otomatis tiap hari bursa:' Cyan
+Say '     .\Install-Schedule.ps1 -Publish' White
 Say ''
