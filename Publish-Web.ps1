@@ -134,16 +134,28 @@ try {
     # dinilai dari $LASTEXITCODE, bukan dari ada/tidaknya tulisan di stderr.
     git add docs 2>$null | Out-Null
     $status = git status --porcelain docs
+    $branch = (git rev-parse --abbrev-ref HEAD).Trim()
+
     if ([string]::IsNullOrWhiteSpace($status)) {
-        Write-Host '  Tidak ada perubahan untuk diunggah.' -ForegroundColor DarkGray
+        # Tidak ada perubahan baru - TAPI bisa saja ada commit lama yang gagal
+        # terunggah (mis. proses dihentikan setelah commit tapi sebelum push).
+        # Dulu di sini langsung return, sehingga commit itu tertinggal selamanya.
+        # Sekarang push tetap dicoba; kalau memang sudah sinkron, git tidak
+        # melakukan apa-apa.
+        git push origin $branch 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host '  Tidak ada perubahan baru; repositori sudah sinkron.' -ForegroundColor DarkGray
+        } else {
+            Write-Host '  Tidak ada perubahan baru, tapi push commit lama GAGAL.' -ForegroundColor Yellow
+            Write-Host '  Coba manual: git push origin ' -NoNewline -ForegroundColor DarkGray
+            Write-Host $branch -ForegroundColor DarkGray
+        }
         Write-Host ''
         return
     }
 
     git commit -m $Message 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "git commit gagal." }
-
-    $branch = (git rev-parse --abbrev-ref HEAD).Trim()
     git push origin $branch 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) {
         throw "git push gagal. Pastikan Anda sudah login ke GitHub (jalankan: gh auth login)."
