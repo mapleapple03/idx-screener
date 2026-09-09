@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Menyiapkan screener di laptop BARU (pindah dari laptop lama).
 
@@ -121,6 +121,24 @@ if ($LASTEXITCODE -ne 0) {
 $user = (& $gh api user --jq .login 2>$null)
 Say "        Login sebagai: $user" Green
 git config --global credential.helper manager 2>$null | Out-Null
+
+# Identitas git. WAJIB: tanpa user.name/user.email, "git commit" GAGAL di laptop baru,
+# sehingga screener tetap jalan tapi dashboard di GitHub Pages tidak pernah diperbarui.
+$gitName  = (git config --global user.name)
+$gitEmail = (git config --global user.email)
+if ([string]::IsNullOrWhiteSpace($gitName)) {
+    if ([string]::IsNullOrWhiteSpace($user)) { $user = 'siaha' }
+    git config --global user.name $user 2>$null | Out-Null
+    $gitName = $user
+}
+if ([string]::IsNullOrWhiteSpace($gitEmail)) {
+    $gitEmail = (& $gh api user --jq .email 2>$null)
+    if ([string]::IsNullOrWhiteSpace($gitEmail) -or $gitEmail -eq 'null') {
+        $gitEmail = "$user@users.noreply.github.com"
+    }
+    git config --global user.email $gitEmail 2>$null | Out-Null
+}
+Say "        Identitas git: $gitName <$gitEmail>" Green
 
 # --- 4. Bangun ulang daftar saham ---
 Say '  [4/5] Mengambil daftar saham (tidak ikut tersimpan di git)...' Cyan
